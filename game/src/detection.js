@@ -8,6 +8,7 @@ import {
   ALERT_RISE_NEAR,
   ALERT_SNEAK_FACTOR,
   GUARD_HALF_VIEW_ANGLE,
+  GUARD_SNEAK_VIEW_FACTOR,
   TILE,
 } from './config.js';
 import { tileCharAt } from './physics.js';
@@ -53,18 +54,25 @@ export function raycastSightDistance(level, x, y, angle, maxDist) {
 
 // Returns { sees, distance, closeness } — closeness is 1 up close, 0 at
 // the edge of vision, and drives how fast the alert rises.
+// Sneaking shrinks a guard's effective view: a sneaking player has to get
+// much closer before the guard can spot them at all (and closeness is
+// measured against that shrunken view, so the edge of it barely raises
+// the alert).
 export function guardSeesPlayer(guard, player, level, viewDistance) {
+  const effectiveView = player.sneaking
+    ? viewDistance * GUARD_SNEAK_VIEW_FACTOR
+    : viewDistance;
   const dx = player.x - guard.x;
   const dy = player.y - guard.y;
   const distance = Math.hypot(dx, dy);
-  if (distance > viewDistance) return { sees: false, distance, closeness: 0 };
+  if (distance > effectiveView) return { sees: false, distance, closeness: 0 };
   const angleToPlayer = Math.atan2(dy, dx);
   const offAngle = Math.abs(angleDifference(angleToPlayer, guard.facing));
   if (offAngle > GUARD_HALF_VIEW_ANGLE) return { sees: false, distance, closeness: 0 };
   if (!hasLineOfSight(level, guard.x, guard.y, player.x, player.y)) {
     return { sees: false, distance, closeness: 0 };
   }
-  return { sees: true, distance, closeness: 1 - distance / viewDistance };
+  return { sees: true, distance, closeness: 1 - distance / effectiveView };
 }
 
 // Alert points per second while the guard has eyes on the player.
